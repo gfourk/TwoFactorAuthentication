@@ -1,89 +1,81 @@
 package LogServer;
 
-import java.io.*; 
-import java.net.*; 
+import java.net.*;
 import java.util.StringTokenizer;
-import javax.swing.JTextArea;
- 
-/**
- * @author K&R
- * Simple example UDP server
- */
-public class LogServerMain
-{
 
-   public static void main(String args[]) throws Exception
-   {
-      // start the gui
-      LogServerFrame gui = new LogServerFrame();
-      gui.setVisible(true);
+public class LogServerMain { // NO_UCD (unused code)
 
-      int bufferLength = 1024;
-      int listenPort = 9999;
+	public static void main(String args[]) throws Exception {
 
-      DatagramSocket serverSocket = new DatagramSocket( listenPort );
+		// start the gui
+		LogServerFrame gui = new LogServerFrame();
+		gui.setVisible(true);
 
-      byte[] receiveData = new byte[bufferLength];
-     // byte[] sendData; // = new byte[bufferLength];
+		int bufferLength = 1024;
+		int listenPort = 9999;
 
-      StringTokenizer st = null;
-      JTextArea area = null;
-      String first_token = null;
+		DatagramSocket serverSocket = null;
 
-      while (true)
-      {
-         DatagramPacket receivePacket =
-            new DatagramPacket(receiveData, receiveData.length);
-         serverSocket.receive(receivePacket);
-         String sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
+		try {
+			serverSocket = new DatagramSocket(listenPort);
 
-         st = new StringTokenizer(sentence,"*");
-         // find the first token
-         if(st.hasMoreTokens()){
-             first_token = st.nextToken();
+			byte[] receiveData = new byte[bufferLength];
+			// byte[] sendData; // = new byte[bufferLength];
 
-             if(first_token.equals("Client")){
-                 //area = gui.clientArea;
-                 if(st.hasMoreTokens()){
-                     gui.client_string+=st.nextToken();
-                     //area.setText(gui.client_string);
-                      gui.client_string +="\n";
-                      gui.server_string+="\n";
-                     gui.net_client_string+="\n";
-                 }
-             }
-             else if(first_token.equals("NetworkClient")){
-                 //area = gui.NetClientArea;
-                 if(st.hasMoreTokens()){
-                     gui.net_client_string+=st.nextToken();
-                   //  area.setText(gui.client_string);
-                      gui.client_string +="\n";
-                      gui.server_string+="\n";
-                     gui.net_client_string+="\n";
-                 }
-             }
-             else if(first_token.equals("Server")){
-               //  area = gui.ServerArea;
-                 if(st.hasMoreTokens()){
-                     gui.server_string+=st.nextToken();
-                     gui.client_string +="\n";
-                      gui.server_string+="\n";
-                     gui.net_client_string+="\n";
+			StringTokenizer st = null;
+			String first_token = null;
 
+			while (true) {
+				DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+				serverSocket.receive(receivePacket);
+				String sentence = new String(receivePacket.getData(), 0, receivePacket.getLength());
 
-                   //  area.setText(gui.client_string);
-                 }
-             }
-             else continue;
-         }
+				st = new StringTokenizer(sentence, "*");
+				// find the first token
+				if (st.hasMoreTokens()) {
+					first_token = st.nextToken();
 
-         // se all text fields
-        gui.clientArea.setText(gui.client_string);
-        gui.ServerArea.setText(gui.server_string);
-        gui.NetClientArea.setText(gui.net_client_string);
-      } // end of while
-   
-   
-   
-   } // end of main
+					if (first_token.equals("Client")) {
+						// area = gui.clientArea;
+						if (st.hasMoreTokens()) {
+							gui.client_string += st.nextToken();
+							// area.setText(gui.client_string);
+							gui.client_string += "\n";
+							gui.server_string += "\n";
+							gui.net_client_string += "\n";
+						}
+					} else if (first_token.equals("NetworkClient")) {
+						// area = gui.NetClientArea;
+						if (st.hasMoreTokens()) {
+							gui.net_client_string += st.nextToken();
+							// area.setText(gui.client_string);
+							gui.client_string += "\n";
+							gui.server_string += "\n";
+							gui.net_client_string += "\n";
+						}
+					} else if (first_token.equals("Server")) {
+						// area = gui.ServerArea;
+						if (st.hasMoreTokens()) {
+							gui.server_string += st.nextToken();
+							gui.client_string += "\n";
+							gui.server_string += "\n";
+							gui.net_client_string += "\n";
+
+							// area.setText(gui.client_string);
+						}
+					} else
+						continue;
+				}
+
+				// se all text fields
+				gui.clientArea.setText(gui.client_string);
+				gui.ServerArea.setText(gui.server_string);
+				gui.NetClientArea.setText(gui.net_client_string);
+			} // end of while
+		} finally {
+			if (serverSocket != null)
+				serverSocket.close();
+		}
+	} // end of main
+
 } // end of class

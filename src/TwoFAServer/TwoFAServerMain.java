@@ -1,31 +1,22 @@
 package TwoFAServer;
 
 import TwoFAServerGUI.TwoFAServerFrame;
-import java.io.IOException;
-import java.net.*;
 
-public class TwoFAServerMain {
+public class TwoFAServerMain { // NO_UCD (unused code)
 
-    /****************************************************************************/
-    /* 								MAIN 										*/ 
-    /****************************************************************************/
 	public static void main(String[] args) {
 
-            TwoFAServer server = new TwoFAServer();
+		TwoFAServer server = new TwoFAServer(2222);// portNumber
 
-            server.port_number = 2222;
+		new TwoFAServerFrame(server).setVisible(true);
 
-            new TwoFAServerFrame(server).setVisible(true);
-
-		
-		
 		// create a dispatcher object to listen to the given port number
-		TwoFAServerDispatcher dispatcher = new TwoFAServerDispatcher(server.port_number);
+		TwoFAServerDispatcher dispatcher = new TwoFAServerDispatcher(server.getPortNumber());
 
 		// start listening
-		try{
+		try {
 			dispatcher.listen(server);
-		} catch (Exception e){
+		} catch (Exception e) {
 			System.exit(0);
 		}
 

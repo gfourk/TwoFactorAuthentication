@@ -6,327 +6,363 @@ import crypto.crypt;
 import java.io.*;
 import java.net.*;
 import java.util.StringTokenizer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import utils.*;
-import java.lang.Long.*;
 import java.security.PublicKey;
 
-public class TwoFAServerThread extends Thread{
-  
-	// protocol stuff
-	int status;
-	
+class TwoFAServerThread extends Thread {
+
 	// network stuff
-	DataInputStream is = null;
-    PrintStream os = null;
-    Socket clientSocket = null;
-    TwoFAServer server;
-    
-    /******************************************************************************
-     *  constructor
-     ******************************************************************************/
-    public TwoFAServerThread(Socket clientSocket,TwoFAServer server){
-    	this.clientSocket=clientSocket;
-    	this.status = 0;
-        this.server = server;
-    }
-    
-    
-    /*******************************************************************************
-     * the run method
-     * 
-     *******************************************************************************/
-    @SuppressWarnings("deprecation")
-    public void run()
-    {
-    	String incomming = null;
-	String outgoing = null;
+	private DataInputStream is = null;
+	private PrintStream os = null;
+	private Socket clientSocket = null;
+	private TwoFAServer server;
 
-	    try{
-                // open input and output streams
-                is = new DataInputStream(clientSocket.getInputStream());
-	    	os = new PrintStream(clientSocket.getOutputStream());
+	/******************************************************************************
+	 * constructor
+	 ******************************************************************************/
+	TwoFAServerThread(Socket clientSocket, TwoFAServer server) {
+		this.clientSocket = clientSocket;
+		this.server = server;
+	}
 
-                // ================================================================================= #1 in
-                incomming = is.readLine();
-                if(incomming == null){
-                    this.clientSocket.close();
-                    Log.log("Error (0)", 2); is.close(); os.close();
-                    return;
-                }
+	/*******************************************************************************
+	 * the run method
+	 * 
+	 *******************************************************************************/
+	@SuppressWarnings("deprecation")
+	public void run() {
+		String incomming = null;
+		String outgoing = null;
 
-                try {
-                    incomming = new String(crypt.RSADecrypt(utils.toByte(incomming), this.server.kp.getPrivate()));
-                } catch (Exception ex) {
-                    Log.log("Error (1)", 2); is.close(); os.close();
-                    return;
-                }
-                
-                StringTokenizer st = new StringTokenizer(incomming,"-");
-                
-                long nonce = 0;
-                String name = null;
-                PublicKey other_public = null;
-                if(st.hasMoreTokens()){
-                   nonce = Long.parseLong(st.nextToken());
-                }
-                if(st.hasMoreTokens()){
-                   name = st.nextToken();
-                }
-                if(st.hasMoreTokens()){
-                    try{
-                    other_public = (PublicKey)utils.bytesToObject(utils.toByte(st.nextToken()));
-                    } catch (Exception e){Log.log("Error (2)", 2);is.close(); os.close(); return;}
-                }else{
-                    Log.log("Error (3)", 2); is.close(); os.close(); return;}
+		try {
+			// open input and output streams
+			is = new DataInputStream(clientSocket.getInputStream());
+			os = new PrintStream(clientSocket.getOutputStream());
 
-                Log.log("Received: "+"<<Nonce,Name,Public Key>>"+" From: "+name+" Nonce: "+nonce, 2);
+			// =================================================================================
+			// #1 in
+			incomming = is.readLine();
+			if (incomming == null) {
+				this.clientSocket.close();
+				Log.log("Error (0)", 2);
+				is.close();
+				os.close();
+				return;
+			}
 
-               // ============================================================================== #2 out
+			try {
+				incomming = new String(crypt.RSADecrypt(utils.toByte(incomming), this.server.kp.getPrivate()));
+			} catch (Exception ex) {
+				Log.log("Error (1)", 2);
+				is.close();
+				os.close();
+				return;
+			}
 
-                AESKey SessionKey = new AESKey();
-                nonce = nonce+1;
-                outgoing = "" +nonce+"-"+utils.toHex(utils.objectToBytes(SessionKey));
+			StringTokenizer st = new StringTokenizer(incomming, "-");
 
-                try{
-                outgoing = utils.toHex(
-                        crypt.RSAEncrypt(
-                        (crypt.RSAEncrypt(outgoing.getBytes(), this.server.kp.getPrivate())),other_public));
-                }
-                catch(Exception e){Log.log("Error (4)", 2); is.close(); os.close(); return;}
+			long nonce = 0;
+			String name = null;
+			PublicKey other_public = null;
+			if (st.hasMoreTokens()) {
+				nonce = Long.parseLong(st.nextToken());
+			}
+			if (st.hasMoreTokens()) {
+				name = st.nextToken();
+			}
+			if (st.hasMoreTokens()) {
+				try {
+					other_public = (PublicKey) utils.bytesToObject(utils.toByte(st.nextToken()));
+				} catch (Exception e) {
+					Log.log("Error (2)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+			} else {
+				Log.log("Error (3)", 2);
+				is.close();
+				os.close();
+				return;
+			}
 
-                os.println(outgoing);
-                
-                Log.log("Sent: "+"<<R+1,Session Key>>" +" Nonce: "+nonce, 2);
+			Log.log("Received: " + "<<Nonce,Name,Public Key>>" + " From: " + name + " Nonce: " + nonce, 2);
 
-                // ============================================================================= #3 in
-                incomming = is.readLine();
-                if(incomming == null){
-                    this.clientSocket.close();
-                    Log.log("Error (5)", 2); is.close(); os.close();
-                    return;
-                }
-                try{
-            incomming =new String(
-                    crypt.RSADecrypt(
-                    crypt.RSADecrypt(
-                    utils.toByte(incomming), this.server.kp.getPrivate())
-                    ,other_public ));
-            } catch (Exception e){Log.log("Error (6)", 2); is.close(); os.close(); return; }
+			// ==============================================================================
+			// #2 out
 
-            st = new StringTokenizer(incomming,"-");
+			AESKey SessionKey = new AESKey();
+			nonce = nonce + 1;
+			outgoing = "" + nonce + "-" + utils.toHex(utils.objectToBytes(SessionKey));
 
-            long nonce_1 = 0;
-            AESKey received_SessionKey = null;
-            if(st.hasMoreTokens())
-                nonce_1 = Long.parseLong(st.nextToken());
-            if(st.hasMoreTokens())
-                try{
-                received_SessionKey = (AESKey) utils.bytesToObject(utils.toByte(st.nextToken()));
-                } catch (Exception e){Log.log("Error (7)", 2); is.close(); os.close(); return ; }
-            else{
-                Log.log("Error (8)", 2); return;
-            }
+			try {
+				outgoing = utils.toHex(crypt.RSAEncrypt(
+						(crypt.RSAEncrypt(outgoing.getBytes(), this.server.kp.getPrivate())), other_public));
+			} catch (Exception e) {
+				Log.log("Error (4)", 2);
+				is.close();
+				os.close();
+				return;
+			}
 
-            if(nonce_1 - 1 != nonce) {
-                Log.log("Error (9)", 2); is.close(); os.close(); return;
-            }
-            if(!utils.compare(received_SessionKey.getEncoded(), SessionKey.getEncoded())){
-                Log.log("Error (10)", 2); is.close(); os.close(); return;
-            }
+			os.println(outgoing);
 
-            Log.log("Received: "+"<<Nonce+2,Session Key>>"+" From: "+name+" Nonce: "+nonce, 2);
+			Log.log("Sent: " + "<<R+1,Session Key>>" + " Nonce: " + nonce, 2);
 
-            // ============================================================================ end of negotiations
+			// =============================================================================
+			// #3 in
+			incomming = is.readLine();
+			if (incomming == null) {
+				this.clientSocket.close();
+				Log.log("Error (5)", 2);
+				is.close();
+				os.close();
+				return;
+			}
+			try {
+				incomming = new String(crypt.RSADecrypt(
+						crypt.RSADecrypt(utils.toByte(incomming), this.server.kp.getPrivate()), other_public));
+			} catch (Exception e) {
+				Log.log("Error (6)", 2);
+				is.close();
+				os.close();
+				return;
+			}
 
-            // make a secure channel
-            SC sc = new SC("Server",name, SessionKey, 0, 0, 4000);
+			st = new StringTokenizer(incomming, "-");
 
+			long nonce_1 = 0;
+			AESKey received_SessionKey = null;
+			if (st.hasMoreTokens())
+				nonce_1 = Long.parseLong(st.nextToken());
+			if (st.hasMoreTokens())
+				try {
+					received_SessionKey = (AESKey) utils.bytesToObject(utils.toByte(st.nextToken()));
+				} catch (Exception e) {
+					Log.log("Error (7)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+			else {
+				Log.log("Error (8)", 2);
+				return;
+			}
 
-            outgoing = "What is it?";
-            os.println(sc.encrypt_msg(outgoing));
-            Log.log("SC Send: " +"What is it?", 2);
+			if (nonce_1 - 1 != nonce) {
+				Log.log("Error (9)", 2);
+				is.close();
+				os.close();
+				return;
+			}
+			if (!utils.compare(received_SessionKey.getEncoded(), SessionKey.getEncoded())) {
+				Log.log("Error (10)", 2);
+				is.close();
+				os.close();
+				return;
+			}
 
-            incomming = is.readLine();
-            if(incomming == null){
-                this.clientSocket.close();
-                Log.log("Error (11)", 2); is.close(); os.close();
-                return;
-            }
-            incomming = sc.decrypt_msg(incomming);
+			Log.log("Received: " + "<<Nonce+2,Session Key>>" + " From: " + name + " Nonce: " + nonce, 2);
 
-            if(incomming == null) {
-                Log.log("Error (12)", 2); is.close(); os.close();
-                return;
-            }
+			// ============================================================================
+			// end of negotiations
 
-            // =============================================== START OF REGISTER REQUEST
-            if(incomming.equals("I want to register")){
-                Log.log("SC Receive: " +"I want to register", 2);
+			// make a secure channel
+			SC sc = new SC("Server", name, SessionKey, 0, 0, 4000);
 
-                outgoing = sc.encrypt_msg("What is your PIN?");
+			outgoing = "What is it?";
+			os.println(sc.encrypt_msg(outgoing));
+			Log.log("SC Send: " + "What is it?", 2);
 
-                os.println(outgoing);
+			incomming = is.readLine();
+			if (incomming == null) {
+				this.clientSocket.close();
+				Log.log("Error (11)", 2);
+				is.close();
+				os.close();
+				return;
+			}
+			incomming = sc.decrypt_msg(incomming);
 
-                Log.log("SC Send: " +"What is your PIN?", 2);
+			if (incomming == null) {
+				Log.log("Error (12)", 2);
+				is.close();
+				os.close();
+				return;
+			}
 
-                incomming = is.readLine();
-                if(incomming == null){
-                    this.clientSocket.close();
-                    Log.log("Error (13)", 2); is.close(); os.close();
-                    return;
-                }
-                incomming = sc.decrypt_msg(incomming);
+			// =============================================== START OF REGISTER REQUEST
+			if (incomming.equals("I want to register")) {
+				Log.log("SC Receive: " + "I want to register", 2);
 
-                if(incomming == null) {
-                    Log.log("Error (14)", 2); is.close(); os.close();
-                    return;
-                }
+				outgoing = sc.encrypt_msg("What is your PIN?");
 
-                Log.log("SC Received: " +"PIN: "+incomming, 2);
+				os.println(outgoing);
 
+				Log.log("SC Send: " + "What is your PIN?", 2);
 
-                String PIN = incomming;
-                String regCode =  this.server.add_unreg(name,PIN,other_public);
+				incomming = is.readLine();
+				if (incomming == null) {
+					this.clientSocket.close();
+					Log.log("Error (13)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+				incomming = sc.decrypt_msg(incomming);
 
-                 Log.log("Server produced regcode: "+regCode, 2);
+				if (incomming == null) {
+					Log.log("Error (14)", 2);
+					is.close();
+					os.close();
+					return;
+				}
 
+				Log.log("SC Received: " + "PIN: " + incomming, 2);
 
-                if(regCode == null){
-                    Log.log("Error (15)", 2);
-                    is.close(); os.close();
-                    return;
-                }
-                os.println(sc.encrypt_msg(regCode));
-                
-                Log.log("SC Sent: " +"RegCode: "+regCode, 2);
+				String PIN = incomming;
+				String regCode = this.server.add_unreg(name, PIN, other_public);
 
+				Log.log("Server produced regcode: " + regCode, 2);
 
-            }// =============================================== END OF REGISTER REQUEST
-            // ==================================================== START OF OTP REQUEST
-            if(incomming.equals("I want an OTP")){
-                Log.log("SC Receive: " +"I want an OTP", 2);
+				if (regCode == null) {
+					Log.log("Error (15)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+				os.println(sc.encrypt_msg(regCode));
 
-                outgoing = sc.encrypt_msg("What is your PIN?");
+				Log.log("SC Sent: " + "RegCode: " + regCode, 2);
 
-                os.println(outgoing);
+			} // =============================================== END OF REGISTER REQUEST
+				// ==================================================== START OF OTP REQUEST
+			if (incomming.equals("I want an OTP")) {
+				Log.log("SC Receive: " + "I want an OTP", 2);
 
-                Log.log("SC Send: " +"What is your PIN?", 2);
+				outgoing = sc.encrypt_msg("What is your PIN?");
 
-                incomming = is.readLine();
-                if(incomming == null){
-                    this.clientSocket.close();
-                    Log.log("Error (413)", 2); is.close(); os.close();
-                    return;
-                }
-                incomming = sc.decrypt_msg(incomming);
+				os.println(outgoing);
 
-                if(incomming == null) {
-                    Log.log("Error (414)", 2); is.close(); os.close();
-                    return;
-                }
+				Log.log("SC Send: " + "What is your PIN?", 2);
 
-                Log.log("SC Received: " +"PIN: "+incomming, 2);
+				incomming = is.readLine();
+				if (incomming == null) {
+					this.clientSocket.close();
+					Log.log("Error (413)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+				incomming = sc.decrypt_msg(incomming);
 
+				if (incomming == null) {
+					Log.log("Error (414)", 2);
+					is.close();
+					os.close();
+					return;
+				}
 
-                String PIN = incomming;
-                String OTP =  this.server.get_OTP(name,PIN,other_public);
+				Log.log("SC Received: " + "PIN: " + incomming, 2);
 
-                if(OTP == null){
-                    Log.log("Error (415)", 2);
-                    is.close(); os.close();
-                    return;
-                }
-                os.println(sc.encrypt_msg(OTP));
+				String PIN = incomming;
+				String OTP = this.server.get_OTP(name, PIN, other_public);
 
-                Log.log("SC Sent: " +"OTP: "+OTP, 2);
+				if (OTP == null) {
+					Log.log("Error (415)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+				os.println(sc.encrypt_msg(OTP));
 
-            }
-            // ====================================================================== START OTP CHECK
-            if(incomming.equals("I want an OTP Check")){
-                Log.log("SC Receive: " +"I want an OTP Check", 2);
+				Log.log("SC Sent: " + "OTP: " + OTP, 2);
 
-                outgoing = sc.encrypt_msg("What is the OTP?");
+			}
+			// ====================================================================== START
+			// OTP CHECK
+			if (incomming.equals("I want an OTP Check")) {
+				Log.log("SC Receive: " + "I want an OTP Check", 2);
 
-                os.println(outgoing);
-                Log.log("SC Send: " +"What is the OTP?", 2);
+				outgoing = sc.encrypt_msg("What is the OTP?");
 
-                incomming = is.readLine();
-                if(incomming == null){
-                    this.clientSocket.close();
-                    Log.log("Error (413)", 2); is.close(); os.close();
-                    return;
-                }
-                incomming = sc.decrypt_msg(incomming);
+				os.println(outgoing);
+				Log.log("SC Send: " + "What is the OTP?", 2);
 
-                if(incomming == null) {
-                    Log.log("Error (414)", 2); is.close(); os.close();
-                    return;
-                }
+				incomming = is.readLine();
+				if (incomming == null) {
+					this.clientSocket.close();
+					Log.log("Error (413)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+				incomming = sc.decrypt_msg(incomming);
 
-                Log.log("SC Received: " +"OTP: "+incomming, 2);
+				if (incomming == null) {
+					Log.log("Error (414)", 2);
+					is.close();
+					os.close();
+					return;
+				}
 
-                String OTP = incomming;
+				Log.log("SC Received: " + "OTP: " + incomming, 2);
 
-                /////////////////////
-                 outgoing = sc.encrypt_msg("What is the Name?");
+				String OTP = incomming;
 
-                os.println(outgoing);
+				/////////////////////
+				outgoing = sc.encrypt_msg("What is the Name?");
 
-                Log.log("SC Send: " +"What is the Name?", 2);
+				os.println(outgoing);
 
-                incomming = is.readLine();
-                if(incomming == null){
-                    this.clientSocket.close();
-                    Log.log("Error (413)", 2); is.close(); os.close();
-                    return;
-                }
-                incomming = sc.decrypt_msg(incomming);
+				Log.log("SC Send: " + "What is the Name?", 2);
 
-                if(incomming == null) {
-                    Log.log("Error (414)", 2); is.close(); os.close();
-                    return;
-                }
+				incomming = is.readLine();
+				if (incomming == null) {
+					this.clientSocket.close();
+					Log.log("Error (413)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+				incomming = sc.decrypt_msg(incomming);
 
-                Log.log("SC Received: " +"Name: "+incomming, 2);
+				if (incomming == null) {
+					Log.log("Error (414)", 2);
+					is.close();
+					os.close();
+					return;
+				}
 
+				Log.log("SC Received: " + "Name: " + incomming, 2);
 
-                String Name = incomming;
+				String Name = incomming;
 
-                String result =  this.server.check_OTP(Name,OTP,other_public);
+				String result = this.server.check_OTP(Name, OTP, other_public);
 
-                if(result == null){
-                    Log.log("Error (415)", 2);
-                    is.close(); os.close();
-                    return;
-                }
-                os.println(sc.encrypt_msg(result));
+				if (result == null) {
+					Log.log("Error (415)", 2);
+					is.close();
+					os.close();
+					return;
+				}
+				os.println(sc.encrypt_msg(result));
 
-                Log.log("SC Sent: " +"Result: "+OTP, 2);
+				Log.log("SC Sent: " + "Result: " + OTP, 2);
 
-            }else{
-                return;
-            }
-            
-        // clean up when done
-        is.close();
-        os.close();
-        clientSocket.close();
+			} else {
+				return;
+			}
 
-            }
-            catch(IOException e){Log.log("Error (G)", 2);
-            return;}
-    }
-    
-    /*****************************************************************************
-     * 
-     * @param line
-     * @return
-     */
-    private String create_response(String line){
-        if(this.status == 20)return "end";
-    	return ""+this.status++;
-    }
+			// clean up when done
+			is.close();
+			os.close();
+			clientSocket.close();
+
+		} catch (IOException e) {
+			Log.log("Error (G)", 2);
+			return;
+		}
+	}
 
 }
